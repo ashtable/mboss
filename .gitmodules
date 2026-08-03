@@ -1,0 +1,15 @@
+[submodule "mboss-database"]
+	path = mboss-database
+	url = https://github.com/ashtable/mboss-database
+[submodule "mboss-web"]
+	path = mboss-web
+	url = https://github.com/ashtable/mboss-web
+[submodule "mboss-nodejs-api"]
+	path = mboss-nodejs-api
+	url = https://github.com/ashtable/mboss-nodejs-api
+[submodule "mboss-nodejs-dbos"]
+	path = mboss-nodejs-dbos
+	url = https://github.com/ashtable/mboss-nodejs-dbos
+[submodule "mboss-zod"]
+	path = mboss-zod
+	url = https://github.com/ashtable/mboss-zod
