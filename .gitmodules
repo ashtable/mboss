@@ -18,3 +18,7 @@
 	path = mboss-zod
 	url = https://github.com/ashtable/mboss-zod
 	branch = zod-v0.0.0
+[submodule "mboss-vscode"]
+	path = mboss-vscode
+	url = https://github.com/ashtable/mboss-vscode
+	branch = vscode-v0.0.0
