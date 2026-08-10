@@ -1,0 +1,18 @@
+# mboss/docker-compose.yml — cloud stack, local dev  [runs the licensing product only]
+#
+# Phase 0 scope: postgres only. The api / dbos / web services arrive with plan.md task 9,
+# once each repo has the dev Dockerfile that compose builds from (design-delta §1.2).
+services:
+  postgres:
+    image: postgres:17
+    environment: { POSTGRES_DB: mboss, POSTGRES_USER: postgres, POSTGRES_PASSWORD: mboss }
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mboss"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+volumes:
+  pgdata:

@@ -1,4 +1,5 @@
 .DS_Store
+.env
 
 prompts/
 design-docs/
