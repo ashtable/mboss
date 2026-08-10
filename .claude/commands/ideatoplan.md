@@ -39,6 +39,22 @@ gets committed.
 ## Ground rules
 
 - **Create `./design-docs/` and `./scratch/` if they don't exist** before launching any subagent.
+- **Clear this command's own scratch files first.** A stale `stepN-*.md` from a previous run is
+  indistinguishable from one this run produced, and a subagent that reads one will silently
+  design against the wrong system. Before launching any subagent, delete exactly these:
+
+  ```
+  rm -f ./scratch/step1-{root,mboss-database,mboss-nodejs-api,mboss-nodejs-dbos,mboss-vscode,mboss-web,mboss-zod}.md \
+        ./scratch/step3-request-research.md \
+        ./scratch/step5-recommended-revisions.md \
+        ./scratch/step6-validity.md \
+        ./scratch/step7-necessity.md \
+        ./scratch/step8-revisions-to-implement.md
+  ```
+
+  **Delete only these paths.** `/plantocode` also writes `stepN-*.md` files into `./scratch/`
+  and its names differ from these, so a blanket `rm ./scratch/step*` would destroy its output.
+  Leave every other file in `./scratch/` alone.
 - **Scratch filenames are the contract between steps.** Every subagent that produces output
   writes to the exact path named below, and every subagent that consumes output reads the exact
   paths named below. Pass these paths explicitly in each subagent prompt — a subagent cannot see
