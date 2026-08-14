@@ -22,3 +22,15 @@
 	path = mboss-vscode
 	url = https://github.com/ashtable/mboss-vscode
 	branch = vscode-v0.0.0
+[submodule "mboss-core"]
+	path = mboss-core
+	url = https://github.com/ashtable/mboss-core
+	branch = core-v0.0.0
+[submodule "mboss-mcp-server"]
+	path = mboss-mcp-server
+	url = https://github.com/ashtable/mboss-mcp-server
+	branch = mcp-server-v0.0.0
+[submodule "mboss-skills"]
+	path = mboss-skills
+	url = https://github.com/ashtable/mboss-skills
+	branch = skills-v0.0.0
