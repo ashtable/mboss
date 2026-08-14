@@ -1,5 +1,7 @@
 .DS_Store
 .env
 
-design-docs/
-scratch/
+design-docs/*
+!design-docs/.gitkeep
+scratch/*
+!scratch/.gitkeep
