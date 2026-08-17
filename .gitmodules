@@ -9,7 +9,7 @@
 [submodule "mboss-nodejs-api"]
 	path = mboss-nodejs-api
 	url = https://github.com/ashtable/mboss-nodejs-api
-	branch = api-v0.0.3
+	branch = api-v0.0.4
 [submodule "mboss-nodejs-dbos"]
 	path = mboss-nodejs-dbos
 	url = https://github.com/ashtable/mboss-nodejs-dbos
@@ -17,7 +17,7 @@
 [submodule "mboss-zod"]
 	path = mboss-zod
 	url = https://github.com/ashtable/mboss-zod
-	branch = zod-v0.0.3
+	branch = zod-v0.0.4
 [submodule "mboss-vscode"]
 	path = mboss-vscode
 	url = https://github.com/ashtable/mboss-vscode
