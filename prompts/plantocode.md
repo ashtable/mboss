@@ -74,6 +74,8 @@ Launch a new opus-engineer subagent to:
 
 
 #### (Step 5) - Implement the TDD Plan
+Important: Stop and ask the user to review and approve the TDD Plan from (Step 4).
+
 Launch a new opus-engineer subagent to:
 - Review the output of the (Step 1), (Step 2), (Step 3) and (Step 4) subagents.
 - Use test-driven development with unit tests and Playwright end-to-end tests, as appropriate, to implement the TDD Plan assembled by the (Step 4) subagent 
