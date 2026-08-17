@@ -1,7 +1,7 @@
 # mboss/docker-compose.yml — cloud stack, local dev  [runs the licensing product only]
 #
-# Phase 0 scope: postgres only. The api / dbos / web services arrive with plan.md task 9,
-# once each repo has the dev Dockerfile that compose builds from (design-delta §1.2).
+# Postgres only for now. The api / dbos / web services join once every one of those repos
+# has the dev Dockerfile compose builds from — the api has one, the other two do not yet.
 services:
   postgres:
     image: postgres:17
