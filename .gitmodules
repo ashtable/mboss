@@ -13,7 +13,7 @@
 [submodule "mboss-nodejs-dbos"]
 	path = mboss-nodejs-dbos
 	url = https://github.com/ashtable/mboss-nodejs-dbos
-	branch = dbos-v0.0.2
+	branch = dbos-v0.0.3
 [submodule "mboss-zod"]
 	path = mboss-zod
 	url = https://github.com/ashtable/mboss-zod
