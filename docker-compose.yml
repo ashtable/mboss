@@ -115,6 +115,12 @@ services:
     depends_on:
       api: { condition: service_healthy }
     ports: ["3000:3000"]
+    # Next.js telemetry is off, but not from
+    # here: mboss-web/Dockerfile sets
+    # NEXT_TELEMETRY_DISABLED image-wide, which
+    # reaches every process the container runs.
+    # It is policy, not configuration, so it has
+    # one home rather than two to keep in sync.
     environment:
       API_BASE_URL: http://api:3001
       WEB_SERVICE_TOKEN: ${WEB_SERVICE_TOKEN:-dev-web-service-token}
