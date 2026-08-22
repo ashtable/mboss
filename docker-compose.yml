@@ -1,18 +1,166 @@
-# mboss/docker-compose.yml — cloud stack, local dev  [runs the licensing product only]
+# mboss/docker-compose.yml — the cloud
+# stack, local dev.
 #
-# Postgres only for now. The api / dbos / web services join once every one of those repos
-# has the dev Dockerfile compose builds from — the api has one, the other two do not yet.
+# `docker compose up` works in a clean
+# checkout with no .env at all: every value
+# below has a development default, and a real
+# .env overrides any of them. The defaults are
+# development secrets and are meant to be
+# readable.
+#
+# web is the only service published to the
+# network. Postgres is published on the
+# loopback alone, so the `npx prisma migrate
+# dev` workflow in mboss-database still
+# reaches it while a laptop on a shared wifi
+# does not hand every Subscriber row to
+# anyone who has read the password below. The
+# api and the worker publish nothing at all,
+# which is this stack's stand-in for the
+# production topology — web is the one
+# publicly routable service, and the API is
+# reachable only from it.
+#
+# Three things about running this locally
+# that are not obvious:
+#
+#   1. Confirmation email needs a real
+#      SENDGRID_API_KEY. There is no mail
+#      sink here, so the worker's send step
+#      reaches the real SendGrid with whatever
+#      key it is given, and the placeholder
+#      gets a 401.
+#
+#   2. That failure is permanent for the
+#      address. A DBOS step error is
+#      checkpointed and terminal, and a
+#      confirmation workflow's id derives from
+#      a 24-hour send key — so a second signup
+#      from the same address inside that
+#      window attaches to the already-failed
+#      workflow instead of starting a new one.
+#      Set a real key before signing up an
+#      address you care about, and use a fresh
+#      address per run.
+#
+#   3. Admin sign-in fails at Microsoft, by
+#      design. The Entra placeholders are not
+#      a registration; the button is expected
+#      to fail loudly when clicked rather than
+#      the app failing to boot.
 services:
   postgres:
     image: postgres:17
     environment: { POSTGRES_DB: mboss, POSTGRES_USER: postgres, POSTGRES_PASSWORD: mboss }
-    ports: ["5432:5432"]
+    ports: ["127.0.0.1:5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d mboss"]
       interval: 2s
       timeout: 2s
       retries: 15
+
+  # The worker starts before the api, because
+  # DBOS creates its system schema at launch
+  # and the api's DBOSClient answers 500
+  # enqueueing into a schema that does not
+  # exist yet. `service_started` is the
+  # strongest condition available: the worker
+  # binds no port and serves no routes, so
+  # there is nothing to poll. That leaves a
+  # few seconds after `up` in which a signup
+  # can fail to enqueue, which a dev stack can
+  # live with and the e2e harness cannot.
+  dbos:
+    build: ./mboss-nodejs-dbos
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://postgres:mboss@postgres:5432/mboss
+      API_BASE_URL: http://api:3001
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-api-token}
+      LINK_KEYS: ${LINK_KEYS:-k1:0000000000000000000000000000000000000000000000000000000000000001}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-dev-sendgrid-key}
+      # Manage links are minted against this
+      # origin, so locally they have to name
+      # the published web port rather than
+      # production.
+      SITE_URL: ${SITE_URL:-http://localhost:3000}
+
+  api:
+    build: ./mboss-nodejs-api
+    depends_on:
+      postgres: { condition: service_healthy }
+      dbos: { condition: service_started }
+    environment:
+      DATABASE_URL: postgres://postgres:mboss@postgres:5432/mboss
+      DBOS_SYSTEM_DATABASE_URL: postgres://postgres:mboss@postgres:5432/mboss
+      WEB_SERVICE_TOKEN: ${WEB_SERVICE_TOKEN:-dev-web-service-token}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-api-token}
+      LINK_KEYS: ${LINK_KEYS:-k1:0000000000000000000000000000000000000000000000000000000000000001}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3001/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build: ./mboss-web
+    depends_on:
+      api: { condition: service_healthy }
+    ports: ["3000:3000"]
+    environment:
+      API_BASE_URL: http://api:3001
+      WEB_SERVICE_TOKEN: ${WEB_SERVICE_TOKEN:-dev-web-service-token}
+      # Web forwards the SendGrid event webhook
+      # to the api's internal surface, so it is
+      # the one service that holds both service
+      # tokens.
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-api-token}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      # Auth.js refuses every request under
+      # NODE_ENV=production unless it is told
+      # which origin it is serving, and this is
+      # what tells it. Its path is the auth
+      # base path.
+      AUTH_URL: ${AUTH_URL:-http://localhost:3000/api/auth}
+      # The default here is also what
+      # mboss-e2e-tests/helpers/session.ts
+      # mints its admin session cookie with.
+      # Change one and the suite stops being
+      # signed in, with nothing to say why. It
+      # is refused outright in production, so a
+      # deploy cannot inherit it.
+      AUTH_SECRET: ${AUTH_SECRET:-dev-auth-secret}
+      AUTH_MICROSOFT_ENTRA_ID_ID: ${AUTH_MICROSOFT_ENTRA_ID_ID:-dev-client-id}
+      AUTH_MICROSOFT_ENTRA_ID_SECRET: ${AUTH_MICROSOFT_ENTRA_ID_SECRET:-dev-client-secret}
+      # One tenant GUID, never `common` or
+      # `organizations`: Entra does not verify
+      # the email claim across tenants, so a
+      # multi-tenant issuer plus a domain check
+      # would admit accounts an attacker
+      # controls. Nothing else parses,
+      # placeholder included.
+      AUTH_MICROSOFT_ENTRA_ID_ISSUER: ${AUTH_MICROSOFT_ENTRA_ID_ISSUER:-https://login.microsoftonline.com/00000000-0000-4000-8000-000000000000/v2.0}
+      ADMIN_ALLOWED_DOMAIN: ${ADMIN_ALLOWED_DOMAIN:-autoretryai.com}
+      SENDGRID_WEBHOOK_PUBLIC_KEY: ${SENDGRID_WEBHOOK_PUBLIC_KEY:-dev-webhook-public-key}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 
 volumes:
   pgdata:
