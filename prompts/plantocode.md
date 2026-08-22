@@ -137,6 +137,6 @@ Launch a new sonnet-engineer subagent to:
 
 ### Update the Implemenation Plan
 
-#### (Step 14) - Commit the revisions
-- Mark each completed task from the implementation plan in ./design-docs/plan.md Done with a Green Checkmark Emoji next to its number in the table
+#### (Step 14) - Update the Plan's Task List
+- If, and only if, applicable: Mark each completed task from the implementation plan in ./design-docs/plan.md Done with a Green Checkmark Emoji next to its number in the table
 
