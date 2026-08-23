@@ -10,16 +10,30 @@
 #
 # Each has a committed .env.example beside it
 # to copy. Populate all three before bringing
-# the stack up, or web/api/dbos fail at their
-# own startup validation, which names the exact
-# variables it wanted. `docker compose up -d
-# postgres` still works on a bare checkout,
-# which is what the `npx prisma migrate dev`
-# workflow in mboss-database needs — that is
-# why the env files are `required: false`
-# rather than `required: true`, since a missing
-# required file fails the whole project at
-# config time, postgres included.
+# the stack up. api and dbos refuse to boot
+# without theirs, though they say so
+# differently: dbos names every missing
+# variable and exits, while api dies first in
+# `prisma migrate deploy`, which names no
+# variable at all — only with DATABASE_URL
+# present does its own validation name the
+# rest. web is the quiet one. It reads its
+# environment on first use, so with the file
+# absent it still starts and answers /healthz
+# 200, then 500s on the first request that
+# reaches a value it needs, naming the missing
+# ones in the container log. A green `docker
+# compose ps` is not evidence that
+# mboss-web/.env.local is complete.
+#
+# `docker compose up -d postgres` still works
+# on a bare checkout, which is what the `npx
+# prisma migrate dev` workflow in
+# mboss-database needs — that is why the env
+# files are `required: false` rather than
+# `required: true`, since a missing required
+# file fails the whole project at config time,
+# postgres included.
 #
 # The environment: blocks below carry only
 # facts about the Docker network, which no
@@ -34,6 +48,14 @@
 # submodule file can no longer change. SITE_URL
 # is the single deliberate exception, explained
 # where it is set.
+#
+# Three values have to agree across two or
+# three of these files or the services reject
+# each other: WEB_SERVICE_TOKEN (web ↔ api),
+# INTERNAL_API_TOKEN (web ↔ api ↔ dbos) and
+# LINK_KEYS (api ↔ dbos). Nothing here forces
+# them into agreement any more; that is the
+# cost of one authoritative file per service.
 #
 # web is the only service published to the
 # network. Postgres is published on the
