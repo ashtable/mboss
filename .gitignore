@@ -1,5 +1,6 @@
 .DS_Store
 .env
+.playwright-mcp/
 
 design-docs/*
 !design-docs/.gitkeep
