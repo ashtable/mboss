@@ -1,12 +1,39 @@
 # mboss/docker-compose.yml — the cloud
 # stack, local dev.
 #
-# `docker compose up` works in a clean
-# checkout with no .env at all: every value
-# below has a development default, and a real
-# .env overrides any of them. The defaults are
-# development secrets and are meant to be
-# readable.
+# Each app service reads its environment from
+# its own submodule's env file:
+#
+#   web   ← mboss-web/.env.local
+#   api   ← mboss-nodejs-api/.env
+#   dbos  ← mboss-nodejs-dbos/.env
+#
+# Each has a committed .env.example beside it
+# to copy. Populate all three before bringing
+# the stack up, or web/api/dbos fail at their
+# own startup validation, which names the exact
+# variables it wanted. `docker compose up -d
+# postgres` still works on a bare checkout,
+# which is what the `npx prisma migrate dev`
+# workflow in mboss-database needs — that is
+# why the env files are `required: false`
+# rather than `required: true`, since a missing
+# required file fails the whole project at
+# config time, postgres included.
+#
+# The environment: blocks below carry only
+# facts about the Docker network, which no
+# submodule file can know. Each of those files
+# names `localhost` for the database and for
+# the api, which is right when that service
+# runs on the host and wrong in here, so these
+# blocks replace exactly those keys with the
+# compose hostnames. Nothing portable belongs
+# here: environment: always beats env_file:, so
+# a value set in both places is a value the
+# submodule file can no longer change. SITE_URL
+# is the single deliberate exception, explained
+# where it is set.
 #
 # web is the only service published to the
 # network. Postgres is published on the
@@ -21,15 +48,16 @@
 # publicly routable service, and the API is
 # reachable only from it.
 #
-# Three things about running this locally
-# that are not obvious:
+# Two things about running this locally that
+# are not obvious:
 #
 #   1. Confirmation email needs a real
-#      SENDGRID_API_KEY. There is no mail
+#      SENDGRID_API_KEY in
+#      mboss-nodejs-dbos/.env. There is no mail
 #      sink here, so the worker's send step
 #      reaches the real SendGrid with whatever
-#      key it is given, and the placeholder
-#      gets a 401.
+#      key it is given, and that file's
+#      placeholder gets a 401.
 #
 #   2. That failure is permanent for the
 #      address. A DBOS step error is
@@ -42,12 +70,6 @@
 #      Set a real key before signing up an
 #      address you care about, and use a fresh
 #      address per run.
-#
-#   3. Admin sign-in fails at Microsoft, by
-#      design. The Entra placeholders are not
-#      a registration; the button is expected
-#      to fail loudly when clicked rather than
-#      the app failing to boot.
 services:
   postgres:
     image: postgres:17
@@ -75,16 +97,36 @@ services:
     build: ./mboss-nodejs-dbos
     depends_on:
       postgres: { condition: service_healthy }
+    # The whole file flows in rather than a
+    # chosen subset — re-listing keys here to
+    # filter it would rebuild the duplication
+    # this arrangement removes. So
+    # SENDGRID_BASE_URL and MAIL_FROM arrive at
+    # the same values the worker's own schema
+    # already defaults to, DBOS_TEST_DATABASE_URL
+    # arrives and is read by nothing this
+    # container runs, and TWILIO_API_KEY /
+    # TWILIO_API_SECRET arrive ahead of the code
+    # that will read them. None of the four
+    # change what the worker does.
+    env_file:
+      - path: ./mboss-nodejs-dbos/.env
+        required: false
     environment:
       DATABASE_URL: postgres://postgres:mboss@postgres:5432/mboss
       API_BASE_URL: http://api:3001
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-api-token}
-      LINK_KEYS: ${LINK_KEYS:-k1:0000000000000000000000000000000000000000000000000000000000000001}
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-dev-sendgrid-key}
-      # Manage links are minted against this
-      # origin, so locally they have to name
-      # the published web port rather than
-      # production.
+      # The one deliberate exception to "the
+      # submodule's file is authoritative", and
+      # it lives here because it is a fact about
+      # where this stack answers rather than
+      # about the worker. Every manage and
+      # unsubscribe link in every outgoing email
+      # is minted against this origin, so locally
+      # it has to name the published web port.
+      # mboss-nodejs-dbos/.env holds the
+      # production origin — correct for a worker
+      # run on the host, and a link nobody here
+      # could click.
       SITE_URL: ${SITE_URL:-http://localhost:3000}
 
   api:
@@ -92,12 +134,14 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       dbos: { condition: service_started }
+    # PORT also arrives from the file, at the
+    # same 3001 the api's own schema defaults to.
+    env_file:
+      - path: ./mboss-nodejs-api/.env
+        required: false
     environment:
       DATABASE_URL: postgres://postgres:mboss@postgres:5432/mboss
       DBOS_SYSTEM_DATABASE_URL: postgres://postgres:mboss@postgres:5432/mboss
-      WEB_SERVICE_TOKEN: ${WEB_SERVICE_TOKEN:-dev-web-service-token}
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-api-token}
-      LINK_KEYS: ${LINK_KEYS:-k1:0000000000000000000000000000000000000000000000000000000000000001}
     healthcheck:
       test:
         [
@@ -115,6 +159,9 @@ services:
     depends_on:
       api: { condition: service_healthy }
     ports: ["3000:3000"]
+    env_file:
+      - path: ./mboss-web/.env.local
+        required: false
     # Next.js telemetry is off, but not from
     # here: mboss-web/Dockerfile sets
     # NEXT_TELEMETRY_DISABLED image-wide, which
@@ -123,39 +170,6 @@ services:
     # one home rather than two to keep in sync.
     environment:
       API_BASE_URL: http://api:3001
-      WEB_SERVICE_TOKEN: ${WEB_SERVICE_TOKEN:-dev-web-service-token}
-      # Web forwards the SendGrid event webhook
-      # to the api's internal surface, so it is
-      # the one service that holds both service
-      # tokens.
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-api-token}
-      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
-      # Auth.js refuses every request under
-      # NODE_ENV=production unless it is told
-      # which origin it is serving, and this is
-      # what tells it. Its path is the auth
-      # base path.
-      AUTH_URL: ${AUTH_URL:-http://localhost:3000/api/auth}
-      # The default here is also what
-      # mboss-e2e-tests/helpers/session.ts
-      # mints its admin session cookie with.
-      # Change one and the suite stops being
-      # signed in, with nothing to say why. It
-      # is refused outright in production, so a
-      # deploy cannot inherit it.
-      AUTH_SECRET: ${AUTH_SECRET:-dev-auth-secret}
-      AUTH_MICROSOFT_ENTRA_ID_ID: ${AUTH_MICROSOFT_ENTRA_ID_ID:-dev-client-id}
-      AUTH_MICROSOFT_ENTRA_ID_SECRET: ${AUTH_MICROSOFT_ENTRA_ID_SECRET:-dev-client-secret}
-      # One tenant GUID, never `common` or
-      # `organizations`: Entra does not verify
-      # the email claim across tenants, so a
-      # multi-tenant issuer plus a domain check
-      # would admit accounts an attacker
-      # controls. Nothing else parses,
-      # placeholder included.
-      AUTH_MICROSOFT_ENTRA_ID_ISSUER: ${AUTH_MICROSOFT_ENTRA_ID_ISSUER:-https://login.microsoftonline.com/00000000-0000-4000-8000-000000000000/v2.0}
-      ADMIN_ALLOWED_DOMAIN: ${ADMIN_ALLOWED_DOMAIN:-autoretryai.com}
-      SENDGRID_WEBHOOK_PUBLIC_KEY: ${SENDGRID_WEBHOOK_PUBLIC_KEY:-dev-webhook-public-key}
     healthcheck:
       test:
         [
