@@ -5,7 +5,7 @@
 [submodule "mboss-web"]
 	path = mboss-web
 	url = https://github.com/ashtable/mboss-web
-	branch = web-v0.0.4
+	branch = web-v0.0.5
 [submodule "mboss-nodejs-api"]
 	path = mboss-nodejs-api
 	url = https://github.com/ashtable/mboss-nodejs-api
