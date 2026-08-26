@@ -74,12 +74,12 @@
 # are not obvious:
 #
 #   1. Confirmation email needs a real
-#      SENDGRID_API_KEY in
+#      TWILIO_API_KEY / TWILIO_API_SECRET in
 #      mboss-nodejs-dbos/.env. There is no mail
 #      sink here, so the worker's send step
-#      reaches the real SendGrid with whatever
-#      key it is given, and that file's
-#      placeholder gets a 401.
+#      reaches the real Twilio Email API with
+#      whatever credentials it is given, and
+#      that file's placeholders get a 401.
 #
 #   2. That failure is permanent for the
 #      address. A DBOS step error is
@@ -123,13 +123,11 @@ services:
     # chosen subset — re-listing keys here to
     # filter it would rebuild the duplication
     # this arrangement removes. So
-    # SENDGRID_BASE_URL and MAIL_FROM arrive at
-    # the same values the worker's own schema
-    # already defaults to, DBOS_TEST_DATABASE_URL
-    # arrives and is read by nothing this
-    # container runs, and TWILIO_API_KEY /
-    # TWILIO_API_SECRET arrive ahead of the code
-    # that will read them. None of the four
+    # TWILIO_EMAIL_BASE_URL, BOUNCE_SCAN_DELAYS_S
+    # and MAIL_FROM arrive at the same values the
+    # worker's own schema already defaults to, and
+    # DBOS_TEST_DATABASE_URL arrives and is read by
+    # nothing this container runs. None of the four
     # change what the worker does.
     env_file:
       - path: ./mboss-nodejs-dbos/.env
