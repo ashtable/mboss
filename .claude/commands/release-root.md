@@ -30,14 +30,16 @@ Four checks, and why each one exists:
 - **e2e CI green?** The newest CI run whose head commit is an ancestor of the
   `mboss-e2e-tests` HEAD must have concluded `success`. Ancestry rather than equality,
   because CI runs on pull requests: a merge commit has no run of its own, but the PR head
-  it merged always does.
+  it merged always does. A run still in flight is refused too — an unfinished suite is
+  not evidence.
 
-The last two checks cover whatever `mboss-e2e-tests/.gitmodules` lists, so the gate grows
-on its own as the suite nests more repositories.
+The pin-parity check covers whatever `mboss-e2e-tests/.gitmodules` lists, so it grows on
+its own as the suite nests more repositories. Until that suite's CI has run at least
+once, the honest outcome is "no CI run covers HEAD", which is a refusal, not a bug.
 
 The gate itself is checked by `./scripts/verify-release-preflight.sh`, which exercises a
-green control, a genuinely mismatched pin, a red e2e head and a missing CI run. Run it
-after changing either script.
+green control, a genuinely mismatched pin, a red e2e head, a missing CI run and an
+unfinished one. Run it after changing either script.
 
 ## Steps
 
