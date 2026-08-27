@@ -105,6 +105,9 @@ commits the e2e suite ran against."
 so no release is covered by its suite."
 
 nested_paths=$(submodule_paths "$root/$E2E/.gitmodules")
+[ -n "$nested_paths" ] ||
+  fail "$E2E/.gitmodules records no submodules, so this release is
+covered by nothing. Nest the service repositories it tests."
 
 while IFS= read -r path; do
   [ -n "$path" ] || continue
