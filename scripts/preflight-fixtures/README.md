@@ -18,3 +18,4 @@ of rotting into a stale SHA.
 | `green.json` | CI passed on the commit being released. The newer, red run is for a SHA that is not an ancestor of that commit — a run from some other branch — so a pre-flight that ignored the ancestor test would fail this case. |
 | `red.json` | CI failed on the commit being released. The older, green run at the same SHA is there so picking any matching run rather than the newest one fails this case. |
 | `none.json` | No runs at all — the honest state before the e2e suite's CI has ever run against this branch. |
+| `running.json` | CI is still in flight on the commit being released. Its `"conclusion": null` is also the one field shape that can silently shift a column out of the parsed run list, so this case pins the parsing as much as the refusal. |

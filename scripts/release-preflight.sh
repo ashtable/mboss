@@ -86,7 +86,8 @@ Releasing the superproject does not commit inside a submodule. Run
 that submodule's own /release-<repo> first, or commit there."
   fi
 
-  if [ -z "$(git -C "$root/$path" branch -r --contains HEAD 2>/dev/null)" ]; then
+  remotes=$(git -C "$root/$path" branch -r --contains HEAD 2>/dev/null)
+  if [ -z "$remotes" ]; then
     fail "$path HEAD $(git -C "$root/$path" rev-parse HEAD) is
 local-only. Push it before releasing, or the superproject will pin a
 commit nobody else can fetch."
@@ -161,10 +162,16 @@ else
 fi
 
 # gh emits a flat array of flat objects, and none of these five
-# values can contain a brace or a quote, so splitting on } and
-# pulling each key out by name is well defined here. Reading the
-# keys by name rather than by position keeps this working whatever
-# order gh prints them in.
+# values can contain a brace, a quote or a pipe, so splitting on }
+# and pulling each key out by name is well defined here. Reading
+# the keys by name rather than by position keeps this working
+# whatever order gh prints them in.
+#
+# The fields are pipe-separated rather than tab-separated because a
+# run still in flight has "conclusion": null, and read collapses a
+# run of IFS whitespace into one delimiter — a tab would shift
+# every later field one to the left exactly when the conclusion is
+# missing.
 records=$(printf '%s\n' "$runs" | awk '
   function value(record, key,   pattern, found) {
     pattern = "\"" key "\"[ \t]*:[ \t]*\"[^\"]*\""
@@ -174,7 +181,7 @@ records=$(printf '%s\n' "$runs" | awk '
     sub(/"$/, "", found)
     return found
   }
-  BEGIN { RS = "}"; OFS = "\t" }
+  BEGIN { RS = "}"; OFS = "|" }
   $0 ~ /"headSha"/ {
     print value($0, "createdAt"), value($0, "headSha"),
       value($0, "conclusion"), value($0, "status"), value($0, "url")
@@ -188,10 +195,11 @@ records=$(printf '%s\n' "$runs" | awk '
 # HEAD: CI runs on pull requests, so the merge commit itself never
 # has a run of its own, but the PR head it merged always does.
 match=""
-while IFS='	' read -r created sha conclusion status url; do
+while IFS='|' read -r created sha conclusion status url; do
   [ -n "$sha" ] || continue
-  if git -C "$root/$E2E" merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
-    match="$conclusion	$status	$url	$sha"
+  if git -C "$root/$E2E" merge-base --is-ancestor "$sha" HEAD \
+    2>/dev/null; then
+    match="$conclusion|$status|$url|$sha"
     break
   fi
 done <<EOF
@@ -203,7 +211,7 @@ EOF
 Push the branch, open or refresh its PR, and let CI finish before
 releasing."
 
-IFS='	' read -r conclusion status url sha <<EOF
+IFS='|' read -r conclusion status url sha <<EOF
 $match
 EOF
 
@@ -213,7 +221,7 @@ EOF
 Wait for it to finish before releasing."
 
 [ "$conclusion" = "success" ] ||
-  fail "CI on $E2E $sha concluded '$conclusion':
+  fail "CI on $E2E $sha concluded '${conclusion:-none}':
   $url
 Fix the suite and let it go green before releasing."
 

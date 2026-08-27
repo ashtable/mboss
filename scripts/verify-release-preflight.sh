@@ -74,7 +74,7 @@ run_preflight() {
 # The fixtures name the commit being released as __E2E_HEAD__ so
 # they do not rot every time mboss-e2e-tests moves.
 head_sha=$(git -C "$e2e" rev-parse HEAD)
-for name in green red none; do
+for name in green red none running; do
   sed "s/__E2E_HEAD__/$head_sha/g" "$fixtures/$name.json" \
     >"$tmp/$name.json"
 done
@@ -117,6 +117,14 @@ report "red e2e head: CI failed on the commit being released" \
 run_preflight "$tmp/none.json"
 report "no matching CI run: nothing covers the e2e HEAD" \
   1 "$rc" "$out" "no CI run covers" "$head_sha"
+
+# 5. Still running: a run in flight has a null conclusion, which is
+#    both a release to refuse and the one shape that can silently
+#    shift a field out of the parsed run list.
+run_preflight "$tmp/running.json"
+report "unfinished CI run: the run covering the e2e HEAD is in flight" \
+  1 "$rc" "$out" "in_progress" \
+  "https://github.com/ashtable/mboss-e2e-tests/actions/runs/5"
 
 # The mutation above is only safe if it is provably undone.
 status_after=$(git -C "$root" status --porcelain)
