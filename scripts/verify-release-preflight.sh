@@ -3,9 +3,15 @@
 # releases it is supposed to refuse.
 #
 # The superproject has no test runner, so this script is the test:
-# it runs four cases against the real repositories, asserts both the
-# exit code and the message content, and prints PASS or FAIL per
-# case. It exits non-zero if any case fails.
+# it runs a green control and four refusals against the real
+# repositories, asserts both the exit code and the message content,
+# and prints PASS or FAIL per case. It exits non-zero if any case
+# fails.
+#
+# The green control needs a genuinely publishable tree, so it fails
+# honestly while a sibling repository has work in progress. Its
+# FAIL output is the pre-flight's own message, which names what is
+# in the way.
 #
 # One case — the mismatched pin — is a real mutation: it detaches
 # mboss-web one commit back so the pre-flight compares real SHAs
