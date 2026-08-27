@@ -37,20 +37,20 @@ trap restore EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
 
-# report <name> <want-exit> <got-exit> <output> [substring...]
+# report <case> <want-exit> <got-exit> <message> [substring...]
 report() {
-  name=$1
-  want=$2
-  got=$3
-  out=$4
+  case_name=$1
+  want_exit=$2
+  got_exit=$3
+  message=$4
   shift 4
 
   why=""
-  if [ "$got" != "$want" ]; then
-    why="expected exit $want, got $got"
+  if [ "$got_exit" != "$want_exit" ]; then
+    why="expected exit $want_exit, got $got_exit"
   fi
   for needle in "$@"; do
-    case $out in
+    case $message in
     *"$needle"*) ;;
     *) why="${why:+$why; }message is missing '$needle'" ;;
     esac
@@ -58,10 +58,10 @@ report() {
 
   if [ -n "$why" ]; then
     failures=$((failures + 1))
-    printf 'FAIL  %s\n        %s\n' "$name" "$why"
-    printf '%s\n' "$out" | sed 's/^/        | /'
+    printf 'FAIL  %s\n        %s\n' "$case_name" "$why"
+    printf '%s\n' "$message" | sed 's/^/        | /'
   else
-    printf 'PASS  %s\n' "$name"
+    printf 'PASS  %s\n' "$case_name"
   fi
 }
 
@@ -86,7 +86,8 @@ printf 'verifying %s\n\n' "$preflight"
 #    SHA belongs to some other branch.
 run_preflight "$tmp/green.json"
 report "green: a publishable tree with CI green on the e2e HEAD" \
-  0 "$rc" "$out"
+  0 "$rc" "$out" \
+  "https://github.com/ashtable/mboss-e2e-tests/actions/runs/2"
 
 # 2. Mismatched pin: the root is about to release an mboss-web
 #    commit that mboss-e2e-tests never tested. Real detach, real
