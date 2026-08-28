@@ -37,7 +37,7 @@
 [submodule "mboss-e2e-tests"]
 	path = mboss-e2e-tests
 	url = https://github.com/ashtable/mboss-e2e-tests
-	branch = e2e-tests-v0.0.3
+	branch = e2e-tests-v0.0.4
 [submodule "mboss-docs"]
 	path = mboss-docs
 	url = https://github.com/ashtable/mboss-docs
