@@ -1,29 +1,45 @@
 ---
 description: Release the mboss superproject — merge its version branch into main and cut the next version branch
 argument-hint: "[next version, e.g. 0.1.0 — defaults to a patch bump]"
-allowed-tools: Bash(git:*), Bash(gh:*), Read, Edit
+allowed-tools: Bash(git:*), Bash(gh:*), Bash(./scripts/release-preflight.sh:*), Read, Edit
 ---
 
 Release the `mboss` superproject itself. All commands run in `/Users/ash/code/mboss`.
 
 Requested next version (may be empty): `$1`
 
-## Pre-flight — submodule pointers must be publishable
+## Pre-flight — the release must be fetchable and evidenced
 
-The superproject records a gitlink per submodule. Before committing, verify each recorded
-commit is reachable on its own remote, or the release will point at commits nobody else
-can fetch. For every submodule in `.gitmodules`:
+Run `./scripts/release-preflight.sh`. If it exits non-zero, stop, report its message
+verbatim, and do not proceed with a partial release. Do not work around it by hand.
 
-- **Uncommitted changes?** `git -C <path> status --porcelain` must be empty. If not, stop
-  and report which submodules are dirty — releasing the root does not commit inside them,
-  and their release command (`/release-database`, `/release-web`, `/release-api`,
-  `/release-dbos`, `/release-zod`) should run first.
-- **Unpushed commits?** The HEAD recorded for each submodule must exist on its remote:
-  `git -C <path> branch -r --contains HEAD` must be non-empty. If a submodule's HEAD is
-  local-only, stop and report it.
+Four checks, and why each one exists:
 
-Stop on any failure and list what needs to happen first. Do not proceed with a partial
-release.
+- **Uncommitted changes?** `git -C <path> status --porcelain` must be empty for every
+  submodule in `.gitmodules`. Releasing the root does not commit inside a submodule, so
+  the work would simply be left behind; that submodule's own release command
+  (`/release-web`, `/release-api`, `/release-dbos`, …) should run first.
+- **Unpushed commits?** `git -C <path> branch -r --contains HEAD` must be non-empty.
+  The superproject records a gitlink per submodule, and a local-only HEAD is a commit
+  nobody else can fetch.
+- **Nested pin parity?** For every submodule `mboss-e2e-tests` nests, the commit it
+  records must equal the commit this release is about to pin. The e2e suite is the
+  evidence for the release, so it has to have run against the code being released — and
+  no `/release-<repo>` command touches a nested pin, so that edit is always by hand and
+  is the step that gets forgotten.
+- **e2e CI green?** The newest CI run whose head commit is an ancestor of the
+  `mboss-e2e-tests` HEAD must have concluded `success`. Ancestry rather than equality,
+  because CI runs on pull requests: a merge commit has no run of its own, but the PR head
+  it merged always does. A run still in flight is refused too — an unfinished suite is
+  not evidence.
+
+The pin-parity check covers whatever `mboss-e2e-tests/.gitmodules` lists, so it grows on
+its own as the suite nests more repositories. Until that suite's CI has run at least
+once, the honest outcome is "no CI run covers HEAD", which is a refusal, not a bug.
+
+The gate itself is checked by `./scripts/verify-release-preflight.sh`, which exercises a
+green control, a genuinely mismatched pin, a red e2e head, a missing CI run and an
+unfinished one. Run it after changing either script.
 
 ## Steps
 
