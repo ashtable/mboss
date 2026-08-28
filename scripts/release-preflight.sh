@@ -194,9 +194,20 @@ records=$(printf '%s\n' "$runs" | awk '
 # A run covers this release when its head is an ancestor of the e2e
 # HEAD: CI runs on pull requests, so the merge commit itself never
 # has a run of its own, but the PR head it merged always does.
+#
+# --is-ancestor exits 128 for a SHA this clone has never heard of,
+# indistinguishable by exit code alone from exit 1's "real commit,
+# not an ancestor" — so a stale local clone would silently read as
+# "no run covers this" instead of "fetch first". cat-file separates
+# the two before asking the ancestry question at all.
 match=""
+unknown=""
 while IFS='|' read -r created sha conclusion status url; do
   [ -n "$sha" ] || continue
+  if ! git -C "$root/$E2E" cat-file -e "$sha^{commit}" 2>/dev/null; then
+    unknown="$unknown $sha"
+    continue
+  fi
   if git -C "$root/$E2E" merge-base --is-ancestor "$sha" HEAD \
     2>/dev/null; then
     match="$conclusion|$status|$url|$sha"
@@ -205,6 +216,13 @@ while IFS='|' read -r created sha conclusion status url; do
 done <<EOF
 $records
 EOF
+
+if [ -z "$match" ] && [ -n "$unknown" ]; then
+  fail "no CI run covers $E2E HEAD $e2e_head (searched $runs_source).
+$(printf '%s\n' "$unknown" | tr ' ' '\n' | sed '/^$/d;s/^/  /') named a
+commit this clone has never fetched. Run \`git -C $E2E fetch --all\`
+and try again."
+fi
 
 [ -n "$match" ] ||
   fail "no CI run covers $E2E HEAD $e2e_head (searched $runs_source).

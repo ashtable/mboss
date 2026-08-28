@@ -3,7 +3,7 @@
 # releases it is supposed to refuse.
 #
 # The superproject has no test runner, so this script is the test:
-# it runs a green control and four refusals against the real
+# it runs a green control and five refusals against the real
 # repositories, asserts both the exit code and the message content,
 # and prints PASS or FAIL per case. It exits non-zero if any case
 # fails.
@@ -80,7 +80,7 @@ run_preflight() {
 # The fixtures name the commit being released as __E2E_HEAD__ so
 # they do not rot every time mboss-e2e-tests moves.
 head_sha=$(git -C "$e2e" rev-parse HEAD)
-for name in green red none running; do
+for name in green red none running unknown; do
   sed "s/__E2E_HEAD__/$head_sha/g" "$fixtures/$name.json" \
     >"$tmp/$name.json"
 done
@@ -88,8 +88,9 @@ done
 printf 'verifying %s\n\n' "$preflight"
 
 # 1. Green control: nothing wrong, so nothing to refuse. Also proves
-#    the older run at HEAD is chosen over the newer red run whose
-#    SHA belongs to some other branch.
+#    a run whose SHA this clone has never fetched (the newer, red
+#    one) is skipped rather than either matching it by mistake or
+#    aborting the whole search.
 run_preflight "$tmp/green.json"
 report "green: a publishable tree with CI green on the e2e HEAD" \
   0 "$rc" "$out" \
@@ -132,6 +133,13 @@ run_preflight "$tmp/running.json"
 report "unfinished CI run: the run covering the e2e HEAD is in flight" \
   1 "$rc" "$out" "in_progress" \
   "https://github.com/ashtable/mboss-e2e-tests/actions/runs/5"
+
+# 6. Unknown commit: the only run names a SHA this clone has never
+#    fetched, which is a different refusal from "no runs at all" —
+#    the fix is to fetch, not to push and wait.
+run_preflight "$tmp/unknown.json"
+report "unknown commit: the only run names a SHA this clone lacks" \
+  1 "$rc" "$out" "never fetched" "fetch --all"
 
 # The mutation above is only safe if it is provably undone.
 status_after=$(git -C "$root" status --porcelain)
