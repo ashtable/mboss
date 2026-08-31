@@ -5,7 +5,7 @@
 [submodule "mboss-web"]
 	path = mboss-web
 	url = https://github.com/ashtable/mboss-web
-	branch = web-v0.0.8
+	branch = web-v0.0.9
 [submodule "mboss-nodejs-api"]
 	path = mboss-nodejs-api
 	url = https://github.com/ashtable/mboss-nodejs-api
@@ -13,11 +13,11 @@
 [submodule "mboss-nodejs-dbos"]
 	path = mboss-nodejs-dbos
 	url = https://github.com/ashtable/mboss-nodejs-dbos
-	branch = dbos-v0.0.9
+	branch = dbos-v0.0.10
 [submodule "mboss-zod"]
 	path = mboss-zod
 	url = https://github.com/ashtable/mboss-zod
-	branch = zod-v0.0.5
+	branch = zod-v0.0.6
 [submodule "mboss-vscode"]
 	path = mboss-vscode
 	url = https://github.com/ashtable/mboss-vscode
@@ -25,7 +25,7 @@
 [submodule "mboss-core"]
 	path = mboss-core
 	url = https://github.com/ashtable/mboss-core
-	branch = core-v0.0.4
+	branch = core-v0.0.5
 [submodule "mboss-mcp-server"]
 	path = mboss-mcp-server
 	url = https://github.com/ashtable/mboss-mcp-server
@@ -37,7 +37,7 @@
 [submodule "mboss-e2e-tests"]
 	path = mboss-e2e-tests
 	url = https://github.com/ashtable/mboss-e2e-tests
-	branch = e2e-tests-v0.0.4
+	branch = e2e-tests-v0.0.5
 [submodule "mboss-docs"]
 	path = mboss-docs
 	url = https://github.com/ashtable/mboss-docs
