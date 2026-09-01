@@ -29,7 +29,7 @@
 [submodule "mboss-mcp-server"]
 	path = mboss-mcp-server
 	url = https://github.com/ashtable/mboss-mcp-server
-	branch = mcp-server-v0.0.0
+	branch = mcp-server-v0.0.1
 [submodule "mboss-skills"]
 	path = mboss-skills
 	url = https://github.com/ashtable/mboss-skills
