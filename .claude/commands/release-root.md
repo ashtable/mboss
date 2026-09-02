@@ -27,19 +27,27 @@ Four checks, and why each one exists:
   evidence for the release, so it has to have run against the code being released — and
   no `/release-<repo>` command touches a nested pin, so that edit is always by hand and
   is the step that gets forgotten.
-- **e2e CI green?** The newest CI run whose head commit is an ancestor of the
-  `mboss-e2e-tests` HEAD must have concluded `success`. Ancestry rather than equality,
-  because CI runs on pull requests: a merge commit has no run of its own, but the PR head
-  it merged always does. A run still in flight is refused too — an unfinished suite is
-  not evidence.
+- **CI green on every pin?** For each submodule this release records, the newest CI run
+  whose head commit is an ancestor of that submodule's HEAD must have concluded
+  `success`. Ancestry rather than equality, because CI runs on pull requests: a merge
+  commit has no run of its own, but the PR head it merged always does. A run still in
+  flight is refused too — an unfinished suite is not evidence. A submodule whose released
+  commit contributes no `.github/workflows/ci.yml` is skipped, because there is no
+  evidence to demand.
 
-The pin-parity check covers whatever `mboss-e2e-tests/.gitmodules` lists, so it grows on
-its own as the suite nests more repositories. Until that suite's CI has run at least
-once, the honest outcome is "no CI run covers HEAD", which is a refusal, not a bug.
+  Every submodule and not only the suite, because the suite going green says nothing
+  about whether a repository it does not exercise ever built — and no branch here is
+  protected, so a `/release-<repo>` command can merge a version branch before its own CI
+  has even started.
+
+The pin-parity check covers whatever `mboss-e2e-tests/.gitmodules` lists and the CI check
+covers whatever this superproject's own `.gitmodules` lists, so both grow on their own as
+either nests more repositories. Until a repository's CI has run at least once, the honest
+outcome is "no CI run covers HEAD", which is a refusal, not a bug.
 
 The gate itself is checked by `./scripts/verify-release-preflight.sh`, which exercises a
-green control, a genuinely mismatched pin, a red e2e head, a missing CI run and an
-unfinished one. Run it after changing either script.
+green control, a genuinely mismatched pin, a red e2e head, a red pin that is not the
+suite's, a missing CI run and an unfinished one. Run it after changing either script.
 
 ## Steps
 
@@ -62,7 +70,14 @@ unfinished one. Run it after changing either script.
    If a PR for the branch already exists (`gh pr view <branch> --repo ashtable/mboss`),
    reuse it instead of creating a duplicate.
 
-5. **Merge the PR.** `gh pr merge <branch> --repo ashtable/mboss --merge`.
+5. **Let CI finish, then merge the PR.** Nothing on GitHub makes the merge wait: no
+   branch in this project is protected, so `gh pr merge` will happily land a branch whose
+   only check has not started. Watch them first —
+   `gh pr checks <branch> --repo ashtable/mboss --watch` — and read the conclusion it
+   reports. If it reports no checks at all, check that claim rather than assuming it:
+   `gh api repos/ashtable/mboss/contents/.github/workflows`. A repository that has a
+   workflow and no run has not been asked yet; push again or reopen the PR.
+   Then `gh pr merge <branch> --repo ashtable/mboss --merge`.
    If the merge is blocked (checks failing, conflicts, protected branch), stop and report
    the reason — do not force it or switch strategies without asking.
 
