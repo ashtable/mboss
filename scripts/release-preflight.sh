@@ -14,18 +14,24 @@
 #   2. every submodule HEAD exists on its own remote
 #   3. every commit mboss-e2e-tests nests matches the commit this
 #      superproject is about to record for the same repository
-#   4. CI is green on the mboss-e2e-tests commit being released
+#   4. CI is green on every commit this release records
 #
-# Checks 3 and 4 are what make the e2e suite mean something. The
+# Checks 3 and 4 are what make the evidence mean something. The
 # release commands bump the superproject pin only, so a nested pin
 # is always a hand edit; when that edit is forgotten, the suite that
 # vouched for the release ran against older code. Check 3 catches
-# exactly that, and check 4 refuses a release whose evidence never
-# actually passed.
+# exactly that.
 #
-# The submodules covered by checks 3 and 4 are read out of
-# mboss-e2e-tests/.gitmodules rather than listed here, so the gate
-# grows on its own as the suite nests more repositories.
+# Check 4 asks every submodule, not only the suite. A
+# /release-<repo> command merges a version branch into main, no
+# branch here is protected, and nothing makes that merge wait for
+# the branch's own CI — so a repository can reach a release having
+# never gone green. One did, and this superproject pinned it.
+#
+# The submodules covered by check 3 are read out of
+# mboss-e2e-tests/.gitmodules and those covered by check 4 out of
+# this superproject's own, rather than listed here, so the gate
+# grows on its own as either nests more repositories.
 #
 # Depends on git and gh, and on nothing else.
 set -eu
@@ -138,111 +144,148 @@ done <<EOF
 $nested_paths
 EOF
 
-# --- check 4: CI green on the e2e commit being released ---
-
-e2e_head=$(git -C "$root/$E2E" rev-parse HEAD)
-
-if [ -n "${MBOSS_GH_RUNS_JSON:-}" ]; then
-  # The one injection seam, so the refusals below are reachable
-  # without a real red build.
-  [ -f "$MBOSS_GH_RUNS_JSON" ] ||
-    fail "MBOSS_GH_RUNS_JSON=$MBOSS_GH_RUNS_JSON is not a file."
-  runs=$(cat "$MBOSS_GH_RUNS_JSON")
-  runs_source=$MBOSS_GH_RUNS_JSON
-else
-  origin=$(git -C "$root/$E2E" config --get remote.origin.url)
-  slug=$(printf '%s' "$origin" | sed \
-    -e 's#^git@github\.com:##' \
-    -e 's#^https://github\.com/##' \
-    -e 's#\.git$##')
-  runs=$(gh run list --repo "$slug" --workflow CI --limit 20 \
-    --json headSha,conclusion,status,url,createdAt) ||
-    fail "gh run list failed for $slug. Is gh authenticated?"
-  runs_source=$slug
-fi
-
-# gh emits a flat array of flat objects, and none of these five
-# values can contain a brace, a quote or a pipe, so splitting on }
-# and pulling each key out by name is well defined here. Reading
-# the keys by name rather than by position keeps this working
-# whatever order gh prints them in.
+# --- check 4: CI green on every commit being released ---
 #
-# The fields are pipe-separated rather than tab-separated because a
-# run still in flight has "conclusion": null, and read collapses a
-# run of IFS whitespace into one delimiter — a tab would shift
-# every later field one to the left exactly when the conclusion is
-# missing.
-records=$(printf '%s\n' "$runs" | awk '
-  function value(record, key,   pattern, found) {
-    pattern = "\"" key "\"[ \t]*:[ \t]*\"[^\"]*\""
-    if (!match(record, pattern)) return ""
-    found = substr(record, RSTART, RLENGTH)
-    sub(/^"[^"]*"[ \t]*:[ \t]*"/, "", found)
-    sub(/"$/, "", found)
-    return found
-  }
-  BEGIN { RS = "}"; OFS = "|" }
-  $0 ~ /"headSha"/ {
-    print value($0, "createdAt"), value($0, "headSha"),
-      value($0, "conclusion"), value($0, "status"), value($0, "url")
-  }
-' | sort -r)
+# A run covers a commit when its head is an ancestor of it: CI runs
+# on pull requests, so a merge commit never has a run of its own,
+# but the PR head it merged always does.
 
-# createdAt leads each line, so a reverse sort is newest first
-# whatever order the run list arrived in.
-#
-# A run covers this release when its head is an ancestor of the e2e
-# HEAD: CI runs on pull requests, so the merge commit itself never
-# has a run of its own, but the PR head it merged always does.
-#
-# --is-ancestor exits 128 for a SHA this clone has never heard of,
-# indistinguishable by exit code alone from exit 1's "real commit,
-# not an ancestor" — so a stale local clone would silently read as
-# "no run covers this" instead of "fetch first". cat-file separates
-# the two before asking the ancestry question at all.
-match=""
-unknown=""
-while IFS='|' read -r created sha conclusion status url; do
-  [ -n "$sha" ] || continue
-  if ! git -C "$root/$E2E" cat-file -e "$sha^{commit}" 2>/dev/null; then
-    unknown="$unknown $sha"
-    continue
-  fi
-  if git -C "$root/$E2E" merge-base --is-ancestor "$sha" HEAD \
+CI_WORKFLOW=.github/workflows/ci.yml
+
+# What GitHub calls the repository a submodule was cloned from.
+slug_of() {
+  git -C "$root/$1" config --get remote.origin.url |
+    sed -e 's#^git@github\.com:##' \
+      -e 's#^https://github\.com/##' \
+      -e 's#\.git$##'
+}
+
+# Refuses unless a finished, successful CI run covers $1's HEAD.
+# Appends one line to $covered saying which run, or why none was
+# asked for.
+check_ci() {
+  repo=$1
+  head=$(git -C "$root/$repo" rev-parse HEAD)
+
+  # A commit that contributes no workflow has no CI evidence to
+  # demand. Read out of the commit being released rather than off
+  # the working tree, because what is being pinned is the question.
+  if ! git -C "$root/$repo" cat-file -e "HEAD:$CI_WORKFLOW" \
     2>/dev/null; then
-    match="$conclusion|$status|$url|$sha"
-    break
+    covered="$covered
+  $repo $head — no $CI_WORKFLOW, so no CI to wait for"
+
+    return 0
   fi
-done <<EOF
+
+  if [ -n "${MBOSS_GH_RUNS_DIR:-}" ]; then
+    # The one injection seam, so the refusals below are reachable
+    # without a real red build.
+    runs_source=$MBOSS_GH_RUNS_DIR/$repo.json
+    [ -f "$runs_source" ] ||
+      fail "MBOSS_GH_RUNS_DIR holds no run list for $repo:
+  $runs_source"
+    runs=$(cat "$runs_source")
+  else
+    runs_source=$(slug_of "$repo")
+    runs=$(gh run list --repo "$runs_source" --workflow CI --limit 20 \
+      --json headSha,conclusion,status,url,createdAt </dev/null) ||
+      fail "gh run list failed for $runs_source. Is gh authenticated?"
+  fi
+
+  # gh emits a flat array of flat objects, and none of these five
+  # values can contain a brace, a quote or a pipe, so splitting on }
+  # and pulling each key out by name is well defined here. Reading
+  # the keys by name rather than by position keeps this working
+  # whatever order gh prints them in.
+  #
+  # The fields are pipe-separated rather than tab-separated because
+  # a run still in flight has "conclusion": null, and read collapses
+  # a run of IFS whitespace into one delimiter — a tab would shift
+  # every later field one to the left exactly when the conclusion is
+  # missing.
+  records=$(printf '%s\n' "$runs" | awk '
+    function value(record, key,   pattern, found) {
+      pattern = "\"" key "\"[ \t]*:[ \t]*\"[^\"]*\""
+      if (!match(record, pattern)) return ""
+      found = substr(record, RSTART, RLENGTH)
+      sub(/^"[^"]*"[ \t]*:[ \t]*"/, "", found)
+      sub(/"$/, "", found)
+      return found
+    }
+    BEGIN { RS = "}"; OFS = "|" }
+    $0 ~ /"headSha"/ {
+      print value($0, "createdAt"), value($0, "headSha"),
+        value($0, "conclusion"), value($0, "status"), value($0, "url")
+    }
+  ' | sort -r)
+
+  # createdAt leads each line, so a reverse sort is newest first
+  # whatever order the run list arrived in.
+  #
+  # --is-ancestor exits 128 for a SHA this clone has never heard of,
+  # indistinguishable by exit code alone from exit 1's "real commit,
+  # not an ancestor" — so a stale local clone would silently read as
+  # "no run covers this" instead of "fetch first". cat-file
+  # separates the two before asking the ancestry question at all.
+  match=""
+  unknown=""
+  while IFS='|' read -r created sha conclusion status url; do
+    [ -n "$sha" ] || continue
+    if ! git -C "$root/$repo" cat-file -e "$sha^{commit}" \
+      2>/dev/null; then
+      unknown="$unknown $sha"
+      continue
+    fi
+    if git -C "$root/$repo" merge-base --is-ancestor "$sha" HEAD \
+      2>/dev/null; then
+      match="$conclusion|$status|$url|$sha"
+      break
+    fi
+  done <<INNER
 $records
-EOF
+INNER
 
-if [ -z "$match" ] && [ -n "$unknown" ]; then
-  fail "no CI run covers $E2E HEAD $e2e_head (searched $runs_source).
+  if [ -z "$match" ] && [ -n "$unknown" ]; then
+    fail "no CI run covers $repo HEAD $head (searched $runs_source).
 $(printf '%s\n' "$unknown" | tr ' ' '\n' | sed '/^$/d;s/^/  /') named a
-commit this clone has never fetched. Run \`git -C $E2E fetch --all\`
+commit this clone has never fetched. Run \`git -C $repo fetch --all\`
 and try again."
-fi
+  fi
 
-[ -n "$match" ] ||
-  fail "no CI run covers $E2E HEAD $e2e_head (searched $runs_source).
+  [ -n "$match" ] ||
+    fail "no CI run covers $repo HEAD $head (searched $runs_source).
 Push the branch, open or refresh its PR, and let CI finish before
 releasing."
 
-IFS='|' read -r conclusion status url sha <<EOF
+  IFS='|' read -r conclusion status url sha <<INNER
 $match
-EOF
+INNER
 
-[ "$status" = "completed" ] ||
-  fail "the CI run covering $E2E $sha is still '$status':
+  [ "$status" = "completed" ] ||
+    fail "the CI run covering $repo $sha is still '$status':
   $url
 Wait for it to finish before releasing."
 
-[ "$conclusion" = "success" ] ||
-  fail "CI on $E2E $sha concluded '${conclusion:-none}':
+  [ "$conclusion" = "success" ] ||
+    fail "CI on $repo $sha concluded '${conclusion:-none}':
   $url
-Fix the suite and let it go green before releasing."
+Fix it and let it go green before releasing."
+
+  covered="$covered
+  $repo $sha
+    $url"
+}
+
+covered=""
+
+while IFS= read -r path; do
+  [ -n "$path" ] || continue
+
+  check_ci "$path"
+done <<EOF
+$root_paths
+EOF
 
 printf 'release pre-flight: %s\n' \
-  "submodules clean and pushed, nested pins match, $E2E CI green
-  $url"
+  "submodules clean and pushed, nested pins match, CI green$covered"

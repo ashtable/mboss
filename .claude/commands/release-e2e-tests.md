@@ -28,7 +28,14 @@ Requested next version (may be empty): `$1`
    (`gh pr view <branch> --repo ashtable/mboss-e2e-tests`), reuse it instead of creating a
    duplicate.
 
-5. **Merge the PR.** `gh pr merge <branch> --repo ashtable/mboss-e2e-tests --merge`.
+5. **Let CI finish, then merge the PR.** Nothing on GitHub makes the merge wait: no
+   branch in this project is protected, so `gh pr merge` will happily land a branch whose
+   only check has not started. Watch them first —
+   `gh pr checks <branch> --repo ashtable/mboss-e2e-tests --watch` — and read the conclusion it
+   reports. If it reports no checks at all, check that claim rather than assuming it:
+   `gh api repos/ashtable/mboss-e2e-tests/contents/.github/workflows`. A repository that has a
+   workflow and no run has not been asked yet; push again or reopen the PR.
+   Then `gh pr merge <branch> --repo ashtable/mboss-e2e-tests --merge`.
    If the merge is blocked (checks failing, conflicts, protected branch), stop and report
    the reason — do not force it or switch strategies without asking.
 

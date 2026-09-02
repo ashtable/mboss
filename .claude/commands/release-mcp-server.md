@@ -28,16 +28,30 @@ Requested next version (may be empty): `$1`
    (`gh pr view <branch> --repo ashtable/mboss-mcp-server`), reuse it instead of creating a
    duplicate.
 
-5. **Merge the PR.** `gh pr merge <branch> --repo ashtable/mboss-mcp-server --merge`.
+5. **Let CI finish, then merge the PR.** Nothing on GitHub makes the merge wait: no
+   branch in this project is protected, so `gh pr merge` will happily land a branch whose
+   only check has not started. Watch them first —
+   `gh pr checks <branch> --repo ashtable/mboss-mcp-server --watch` — and read the conclusion it
+   reports. If it reports no checks at all, check that claim rather than assuming it:
+   `gh api repos/ashtable/mboss-mcp-server/contents/.github/workflows`. A repository that has a
+   workflow and no run has not been asked yet; push again or reopen the PR.
+   Then `gh pr merge <branch> --repo ashtable/mboss-mcp-server --merge`.
    If the merge is blocked (checks failing, conflicts, protected branch), stop and report
    the reason — do not force it or switch strategies without asking.
 
 6. **Sync main.** `git -C mboss-mcp-server checkout main && git -C mboss-mcp-server pull --ff-only`
 
-7. **Cut the next branch.** The new version is `$1` if provided, otherwise a patch bump of
-   the branch from step 1 (`mcp-server-v0.0.3` → `mcp-server-v0.0.4`). Create it off the
-   freshly merged main and push:
-   `git -C mboss-mcp-server checkout -b mcp-server-v<next>` then
+7. **Cut the next branch, and tell the repository its own name.** The new version is `$1`
+   if provided, otherwise a patch bump of the branch from step 1 (`mcp-server-v0.0.3` →
+   `mcp-server-v0.0.4`). Create it off the freshly merged main:
+   `git -C mboss-mcp-server checkout -b mcp-server-v<next>`
+
+   Then write the new branch name into `mboss-mcp-server/.version` and commit it. That
+   file is what the server's bundle stamps itself with — a build of this repository as
+   somebody else's submodule is detached and has no branch to read, so the name has to
+   travel in the checkout. Leaving it behind stamps the next release with the last one's
+   version; the repository's own suite fails on it while the branch is checked out, which
+   is the safety net rather than the mechanism. Then push:
    `git -C mboss-mcp-server push -u origin mcp-server-v<next>`
 
 8. **Bump the superproject.** In `/Users/ash/code/mboss`:
