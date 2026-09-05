@@ -146,9 +146,12 @@ EOF
 
 # --- check 4: CI green on every commit being released ---
 #
-# A run covers a commit when its head is an ancestor of it: CI runs
-# on pull requests, so a merge commit never has a run of its own,
-# but the PR head it merged always does.
+# A run covers a commit when it ran on that commit. CI runs on pull
+# requests, so a merge commit never has a run of its own; what
+# covers it is the run on the head it merged, which is one of its
+# parents. Nothing further back counts: a commit pushed after the
+# last run was built by nothing, and accepting any ancestor would
+# let that run vouch for every commit pushed since.
 
 CI_WORKFLOW=.github/workflows/ci.yml
 
@@ -220,14 +223,23 @@ check_ci() {
     }
   ' | sort -r)
 
+  # The commits a run may name and still cover this release: the
+  # commit itself, and the heads it merged when it is a merge.
+  # rev-list prints the commit and then its parents, so two spaces
+  # is what a merge looks like.
+  parents=$(git -C "$root/$repo" rev-list --parents -n1 HEAD)
+  covering=$head
+  case $parents in
+  *' '*' '*) covering=$parents ;;
+  esac
+
   # createdAt leads each line, so a reverse sort is newest first
   # whatever order the run list arrived in.
   #
-  # --is-ancestor exits 128 for a SHA this clone has never heard of,
-  # indistinguishable by exit code alone from exit 1's "real commit,
-  # not an ancestor" — so a stale local clone would silently read as
-  # "no run covers this" instead of "fetch first". cat-file
-  # separates the two before asking the ancestry question at all.
+  # A run naming a commit this clone has never fetched is a
+  # different problem from no run at all — the fix is to fetch, not
+  # to push and wait — so cat-file separates the two rather than
+  # letting an unfetched SHA read as "nothing covers this".
   match=""
   unknown=""
   while IFS='|' read -r created sha conclusion status url; do
@@ -237,11 +249,12 @@ check_ci() {
       unknown="$unknown $sha"
       continue
     fi
-    if git -C "$root/$repo" merge-base --is-ancestor "$sha" HEAD \
-      2>/dev/null; then
+    case " $covering " in
+    *" $sha "*)
       match="$conclusion|$status|$url|$sha"
       break
-    fi
+      ;;
+    esac
   done <<INNER
 $records
 INNER

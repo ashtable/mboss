@@ -28,12 +28,12 @@ Four checks, and why each one exists:
   no `/release-<repo>` command touches a nested pin, so that edit is always by hand and
   is the step that gets forgotten.
 - **CI green on every pin?** For each submodule this release records, the newest CI run
-  whose head commit is an ancestor of that submodule's HEAD must have concluded
-  `success`. Ancestry rather than equality, because CI runs on pull requests: a merge
-  commit has no run of its own, but the PR head it merged always does. A run still in
-  flight is refused too — an unfinished suite is not evidence. A submodule whose released
-  commit contributes no `.github/workflows/ci.yml` is skipped, because there is no
-  evidence to demand.
+  that ran on that submodule's HEAD must have concluded `success`. A merge commit is
+  covered by a run on one of its parents instead, because CI runs on pull requests and a
+  merge commit has no run of its own — but nothing further back counts, or one green run
+  would vouch for every commit pushed after it. A run still in flight is refused too — an
+  unfinished suite is not evidence. A submodule whose released commit contributes no
+  `.github/workflows/ci.yml` is skipped, because there is no evidence to demand.
 
   Every submodule and not only the suite, because the suite going green says nothing
   about whether a repository it does not exercise ever built — and no branch here is
@@ -47,7 +47,9 @@ outcome is "no CI run covers HEAD", which is a refusal, not a bug.
 
 The gate itself is checked by `./scripts/verify-release-preflight.sh`, which exercises a
 green control, a genuinely mismatched pin, a red e2e head, a red pin that is not the
-suite's, a missing CI run and an unfinished one. Run it after changing either script.
+suite's, a missing CI run, an unfinished one, a run that is behind the commit being
+released, and the merge parent that is the one earlier run a release may lean on. Run it
+after changing either script.
 
 ## Steps
 
