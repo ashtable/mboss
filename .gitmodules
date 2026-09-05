@@ -33,7 +33,7 @@
 [submodule "mboss-skills"]
 	path = mboss-skills
 	url = https://github.com/ashtable/mboss-skills
-	branch = skills-v0.0.1
+	branch = skills-v0.0.2
 [submodule "mboss-e2e-tests"]
 	path = mboss-e2e-tests
 	url = https://github.com/ashtable/mboss-e2e-tests
