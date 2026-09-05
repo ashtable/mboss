@@ -22,12 +22,11 @@ Four checks, and why each one exists:
 - **Unpushed commits?** `git -C <path> branch -r --contains HEAD` must be non-empty.
   The superproject records a gitlink per submodule, and a local-only HEAD is a commit
   nobody else can fetch.
-- **Nested pin parity?** For every submodule nested inside a submodule, the commit the
-  parent records must equal the commit this release is about to pin. A repository is
-  built and tested from what it nests: the e2e suite runs the commits inside it, and the
-  packaged extension inlines the library and the skill inside it. No `/release-<repo>`
-  command touches a nested pin, so that edit is always by hand and is the step that gets
-  forgotten.
+- **Nested pin parity?** For every submodule `mboss-e2e-tests` nests, the commit it
+  records must equal the commit this release is about to pin. The e2e suite is the
+  evidence for the release, so it has to have run against the code being released — and
+  no `/release-<repo>` command touches a nested pin, so that edit is always by hand and
+  is the step that gets forgotten.
 - **CI green on every pin?** For each submodule this release records, the newest CI run
   that ran on that submodule's HEAD must have concluded `success`. A merge commit is
   covered by a run on one of its parents instead, because CI runs on pull requests and a
@@ -41,8 +40,9 @@ Four checks, and why each one exists:
   protected, so a `/release-<repo>` command can merge a version branch before its own CI
   has even started.
 
-Both checks read the repositories they cover out of the relevant `.gitmodules` rather
-than a list, so they grow on their own as any repository nests more. Until a repository's CI has run at least once, the honest
+The pin-parity check covers whatever `mboss-e2e-tests/.gitmodules` lists and the CI check
+covers whatever this superproject's own `.gitmodules` lists, so both grow on their own as
+either nests more repositories. Until a repository's CI has run at least once, the honest
 outcome is "no CI run covers HEAD", which is a refusal, not a bug.
 
 The gate itself is checked by `./scripts/verify-release-preflight.sh`, which exercises a
