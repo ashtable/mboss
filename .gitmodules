@@ -21,7 +21,7 @@
 [submodule "mboss-vscode"]
 	path = mboss-vscode
 	url = https://github.com/ashtable/mboss-vscode
-	branch = vscode-v0.0.2
+	branch = vscode-v0.0.3
 [submodule "mboss-core"]
 	path = mboss-core
 	url = https://github.com/ashtable/mboss-core
