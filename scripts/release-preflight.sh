@@ -1,7 +1,7 @@
 #!/bin/sh
 # Refuses to release a superproject that nobody could fetch, or
-# whose end-to-end evidence came from a different set of commits
-# than the one being released.
+# whose evidence came from a different set of commits than the one
+# being released.
 #
 #   scripts/release-preflight.sh [--root <dir>]
 #     exit 0  everything is publishable
@@ -12,15 +12,17 @@
 #
 #   1. every submodule working tree is clean
 #   2. every submodule HEAD exists on its own remote
-#   3. every commit mboss-e2e-tests nests matches the commit this
-#      superproject is about to record for the same repository
+#   3. every commit nested inside a submodule matches the commit
+#      this superproject is about to record for the same repository
 #   4. CI is green on every commit this release records
 #
 # Checks 3 and 4 are what make the evidence mean something. The
 # release commands bump the superproject pin only, so a nested pin
 # is always a hand edit; when that edit is forgotten, the suite that
-# vouched for the release ran against older code. Check 3 catches
-# exactly that.
+# vouched for the release ran against older code and the extension
+# it packaged inlined an older library. Check 3 catches exactly
+# that, wherever the nesting is: the suite is not the only
+# repository built from what it nests.
 #
 # Check 4 asks every submodule, not only the suite. A
 # /release-<repo> command merges a version branch into main, no
@@ -28,10 +30,9 @@
 # the branch's own CI — so a repository can reach a release having
 # never gone green. One did, and this superproject pinned it.
 #
-# The submodules covered by check 3 are read out of
-# mboss-e2e-tests/.gitmodules and those covered by check 4 out of
-# this superproject's own, rather than listed here, so the gate
-# grows on its own as either nests more repositories.
+# Both checks read the repositories they cover out of the relevant
+# .gitmodules rather than a list here, so the gate grows on its own
+# as any of them nests more repositories.
 #
 # Depends on git and gh, and on nothing else.
 set -eu
@@ -102,7 +103,19 @@ done <<EOF
 $root_paths
 EOF
 
-# --- check 3: the pins the e2e suite actually tested ---
+# --- check 3: the pins that were actually built and tested ---
+#
+# A repository that nests others is built from what it nests, not
+# from what this superproject pins: the suite runs the commits
+# inside it, and the packaged extension inlines the library inside
+# it. So every gitlink recorded inside a repository this release
+# pins has to name the commit this release records for the same
+# repository.
+#
+# Walking the repositories this superproject pins reaches every
+# level. One nested two deep is held by its own parent, and that
+# parent is held here to this release's commit, so its nesting is
+# the nesting this loop already compares.
 
 [ -e "$root/$E2E/.git" ] ||
   fail "$E2E is not checked out, so the release cannot be told which
@@ -110,45 +123,56 @@ commits the e2e suite ran against."
 [ -f "$root/$E2E/.gitmodules" ] ||
   fail "$E2E has no .gitmodules — it nests no service repositories,
 so no release is covered by its suite."
-
-nested_paths=$(submodule_paths "$root/$E2E/.gitmodules")
-[ -n "$nested_paths" ] ||
+[ -n "$(submodule_paths "$root/$E2E/.gitmodules")" ] ||
   fail "$E2E/.gitmodules records no submodules, so this release is
 covered by nothing. Nest the service repositories it tests."
 
-while IFS= read -r path; do
-  [ -n "$path" ] || continue
+while IFS= read -r parent; do
+  [ -n "$parent" ] || continue
+  [ -f "$root/$parent/.gitmodules" ] || continue
 
-  [ -e "$root/$path/.git" ] ||
-    fail "$E2E nests $path, which the superproject does not have
-checked out, so their pins cannot be compared."
+  nested_paths=$(submodule_paths "$root/$parent/.gitmodules")
 
-  root_sha=$(git -C "$root/$path" rev-parse HEAD)
-  e2e_sha=$(git -C "$root/$E2E" rev-parse "HEAD:$path" 2>/dev/null) ||
-    e2e_sha=""
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
 
-  [ -n "$e2e_sha" ] ||
-    fail "$E2E/.gitmodules lists $path but its HEAD commit records no
-gitlink there. Commit the nested submodule in $E2E."
+    [ -e "$root/$path/.git" ] ||
+      fail "$parent nests $path, which the superproject does not
+have checked out, so their pins cannot be compared."
 
-  if [ "$root_sha" != "$e2e_sha" ]; then
-    fail "$path pin mismatch.
+    root_sha=$(git -C "$root/$path" rev-parse HEAD)
+    nested_sha=$(git -C "$root/$parent" rev-parse "HEAD:$path" \
+      2>/dev/null) || nested_sha=""
+
+    [ -n "$nested_sha" ] ||
+      fail "$parent/.gitmodules lists $path but its HEAD commit
+records no gitlink there. Commit the nested submodule in $parent."
+
+    if [ "$root_sha" != "$nested_sha" ]; then
+      fail "$path pin mismatch.
   this release pins  $root_sha
-  the e2e suite ran  $e2e_sha
-The suite that vouches for this release ran against different code.
-Check $path out at the released commit inside $E2E, commit the
-nested gitlink, push, and let its CI run — no /release-<repo>
-command touches a nested pin, so that step is always by hand."
-  fi
-done <<EOF
+  $parent nests  $nested_sha
+$parent is built and tested from the commit it nests, so this
+release would record code nothing here ran. Check $path out at the
+released commit inside $parent, commit the nested gitlink, push,
+and let its CI run — no /release-<repo> command touches a nested
+pin, so that step is always by hand."
+    fi
+  done <<INNER
 $nested_paths
+INNER
+done <<EOF
+$root_paths
 EOF
 
 # --- check 4: CI green on every commit being released ---
 #
-# A run covers a commit when its head is an ancestor of it: CI runs
-# on pull requests, so a merge commit never has a run of its own,
-# but the PR head it merged always does.
+# A run covers a commit when it ran on that commit. CI runs on pull
+# requests, so a merge commit never has a run of its own; what
+# covers it is the run on the head it merged, which is one of its
+# parents. Nothing further back counts: a commit pushed after the
+# last run was built by nothing, and accepting any ancestor would
+# let that run vouch for every commit pushed since.
 
 CI_WORKFLOW=.github/workflows/ci.yml
 
@@ -220,14 +244,23 @@ check_ci() {
     }
   ' | sort -r)
 
+  # The commits a run may name and still cover this release: the
+  # commit itself, and the heads it merged when it is a merge.
+  # rev-list prints the commit and then its parents, so two spaces
+  # is what a merge looks like.
+  parents=$(git -C "$root/$repo" rev-list --parents -n1 HEAD)
+  covering=$head
+  case $parents in
+  *' '*' '*) covering=$parents ;;
+  esac
+
   # createdAt leads each line, so a reverse sort is newest first
   # whatever order the run list arrived in.
   #
-  # --is-ancestor exits 128 for a SHA this clone has never heard of,
-  # indistinguishable by exit code alone from exit 1's "real commit,
-  # not an ancestor" — so a stale local clone would silently read as
-  # "no run covers this" instead of "fetch first". cat-file
-  # separates the two before asking the ancestry question at all.
+  # A run naming a commit this clone has never fetched is a
+  # different problem from no run at all — the fix is to fetch, not
+  # to push and wait — so cat-file separates the two rather than
+  # letting an unfetched SHA read as "nothing covers this".
   match=""
   unknown=""
   while IFS='|' read -r created sha conclusion status url; do
@@ -237,11 +270,12 @@ check_ci() {
       unknown="$unknown $sha"
       continue
     fi
-    if git -C "$root/$repo" merge-base --is-ancestor "$sha" HEAD \
-      2>/dev/null; then
+    case " $covering " in
+    *" $sha "*)
       match="$conclusion|$status|$url|$sha"
       break
-    fi
+      ;;
+    esac
   done <<INNER
 $records
 INNER

@@ -9,11 +9,14 @@ one `<submodule path>.json` per repository being released, and it
 exists so the red-CI and no-run refusals are reachable without
 waiting for a real build to break.
 
-`__HEAD__` and `__REPO__` are placeholders. The verify script
-rewrites them to that submodule's `rev-parse HEAD` and its path
-before each run, so the fixtures keep describing the commits
-actually being released instead of rotting into stale SHAs — and so
-one file can stand for whichever repository a case is about.
+`__HEAD__`, `__ANCESTOR__`, `__MERGE_PARENT__` and `__REPO__` are
+placeholders. The verify script rewrites them to that submodule's
+`rev-parse HEAD`, `HEAD~2`, `HEAD^2` and its path before each run,
+so the fixtures keep describing the commits actually being released
+instead of rotting into stale SHAs — and so one file can stand for
+whichever repository a case is about. `__MERGE_PARENT__` resolves
+only in a repository whose HEAD is a merge commit, so the case
+using it picks its repository at run time.
 
 A repository with no `.github/workflows/ci.yml` is given no file at
 all. The pre-flight must not demand evidence a repository cannot
@@ -27,3 +30,5 @@ question shows up as a refusal naming the missing run list.
 | `none.json` | No runs at all — the honest state before a repository's CI has ever run against this branch. |
 | `running.json` | CI is still in flight on the commit being released. Its `"conclusion": null` is also the one field shape that can silently shift a column out of the parsed run list, so this case pins the parsing as much as the refusal. |
 | `unknown.json` | The only run names a commit this clone has never fetched — distinct from `none.json`'s "no runs exist at all": the fix here is `git fetch`, not push-and-wait, and the pre-flight's message needs to say so rather than reusing the no-run refusal. |
+| `stale.json` | The only success ran two commits before the one being released. An ancestor is not evidence for what came after it, so this is a refusal — without this case, the accommodation `merged.json` needs could be widened to any ancestor and nothing here would notice. |
+| `merged.json` | The only success ran on the head a merge commit merged. CI runs on pull requests, so a merge commit has no run of its own and this is the one earlier commit that does cover a release. |

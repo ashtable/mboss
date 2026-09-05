@@ -1,0 +1,9 @@
+[
+  {
+    "conclusion": "success",
+    "createdAt": "2026-08-27T12:00:00Z",
+    "headSha": "__MERGE_PARENT__",
+    "status": "completed",
+    "url": "https://github.com/ashtable/__REPO__/actions/runs/8"
+  }
+]

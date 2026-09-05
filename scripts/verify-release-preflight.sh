@@ -3,27 +3,31 @@
 # releases it is supposed to refuse.
 #
 # The superproject has no test runner, so this script is the test:
-# it runs a green control and six refusals against the real
-# repositories, asserts both the exit code and the message content,
-# and prints PASS or FAIL per case. It exits non-zero if any case
-# fails.
+# it runs two controls the pre-flight must accept and seven
+# refusals against the real repositories, asserts both the exit
+# code and the message content, and prints PASS or FAIL per case.
+# It exits non-zero if any case fails.
 #
-# The green control needs a genuinely publishable tree, so it fails
-# honestly while a sibling repository has work in progress. Its
-# FAIL output is the pre-flight's own message, which names what is
-# in the way.
+# Every case needs a genuinely publishable tree, so every case
+# fails honestly while a sibling repository has work in progress:
+# the pre-flight stops at its first refusal, which is then the
+# message a case set up elsewhere gets judged against. That FAIL
+# output is the pre-flight's own message, and it names what is in
+# the way.
 #
-# One case — the mismatched pin — is a real mutation: it detaches
-# mboss-web one commit back so the pre-flight compares real SHAs
-# from real repositories. A trap puts the submodule back on the ref
-# it was on, whether this script finishes, fails, or is interrupted,
-# and the last case proves the working tree came back unchanged.
+# Two cases — the mismatched pins — are real mutations: they detach
+# a submodule one commit back so the pre-flight compares real SHAs
+# from real repositories. A trap puts each submodule back on the
+# ref it was on, whether this script finishes, fails, or is
+# interrupted, and the last case proves the working tree came back
+# unchanged.
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 preflight="$root/scripts/release-preflight.sh"
 fixtures="$root/scripts/preflight-fixtures"
 web="$root/mboss-web"
+core="$root/mboss-core"
 e2e="$root/mboss-e2e-tests"
 
 failures=0
@@ -32,10 +36,13 @@ failures=0
 status_before=$(git -C "$root" status --porcelain)
 web_ref=$(git -C "$web" symbolic-ref -q --short HEAD ||
   git -C "$web" rev-parse HEAD)
+core_ref=$(git -C "$core" symbolic-ref -q --short HEAD ||
+  git -C "$core" rev-parse HEAD)
 tmp=$(mktemp -d)
 
 restore() {
   git -C "$web" checkout --quiet "$web_ref" 2>/dev/null || true
+  git -C "$core" checkout --quiet "$core_ref" 2>/dev/null || true
   rm -rf "$tmp"
 }
 
@@ -84,9 +91,11 @@ run_preflight() {
 #
 # The fixtures name the commit being released as __HEAD__ and the
 # repository as __REPO__, so they do not rot every time a submodule
-# moves. Repositories with no workflow are deliberately given no
-# file at all — the pre-flight must not ask about them, and the
-# green case is where that is proved.
+# moves. __ANCESTOR__ and __MERGE_PARENT__ name the two commits
+# that are not the release but sit next to it: one the pre-flight
+# must refuse and one it must accept. Repositories with no workflow
+# are deliberately given no file at all — the pre-flight must not
+# ask about them, and the green case is where that is proved.
 covered_paths=$(git config --file "$root/.gitmodules" \
   --get-regexp '^submodule\..*\.path$' | cut -d' ' -f2- |
   while IFS= read -r path; do
@@ -113,8 +122,30 @@ case_dir() {
       esac
     done
 
-    sed -e "s/__HEAD__/$(git -C "$root/$path" rev-parse HEAD)/g" \
-      -e "s/__REPO__/$path/g" "$fixtures/$name.json" \
+    # Each placeholder is resolved only where a fixture asks for
+    # it: HEAD^2 exists in a merge commit alone, and asking for it
+    # everywhere would abort the run instead of writing the case.
+    body=$(cat "$fixtures/$name.json")
+    case $body in
+    *__HEAD__*)
+      sha=$(git -C "$root/$path" rev-parse HEAD)
+      body=$(printf '%s\n' "$body" | sed "s/__HEAD__/$sha/g")
+      ;;
+    esac
+    case $body in
+    *__ANCESTOR__*)
+      sha=$(git -C "$root/$path" rev-parse HEAD~2)
+      body=$(printf '%s\n' "$body" | sed "s/__ANCESTOR__/$sha/g")
+      ;;
+    esac
+    case $body in
+    *__MERGE_PARENT__*)
+      sha=$(git -C "$root/$path" rev-parse HEAD^2)
+      body=$(printf '%s\n' "$body" | sed "s/__MERGE_PARENT__/$sha/g")
+      ;;
+    esac
+
+    printf '%s\n' "$body" | sed "s/__REPO__/$path/g" \
       >"$dir/$path.json"
   done
 
@@ -156,13 +187,23 @@ else
     1 "$rc" "$out" "mboss-web" "$web_prev" "$e2e_web"
 fi
 
-# 3. Red e2e head: CI ran on exactly this commit and failed.
+# 3. A pin the suite cannot vouch for: mboss-core is nested by the
+#    extension and by the server, never by the suite, so only a
+#    walk that goes past mboss-e2e-tests compares it at all.
+core_prev=$(git -C "$core" rev-parse HEAD~1)
+git -C "$core" checkout --quiet --detach "$core_prev"
+run_preflight "$green"
+git -C "$core" checkout --quiet "$core_ref"
+report "unsuited pin: root mboss-core differs from what nests it" \
+  1 "$rc" "$out" "mboss-core" "$core_prev"
+
+# 4. Red e2e head: CI ran on exactly this commit and failed.
 run_preflight "$(case_dir green mboss-e2e-tests=red)"
 report "red e2e head: CI failed on the commit being released" \
   1 "$rc" "$out" "mboss-e2e-tests" "failure" \
   "https://github.com/ashtable/mboss-e2e-tests/actions/runs/3"
 
-# 4. Red anywhere else: the hole this gate was widened to close. The
+# 5. Red anywhere else: the hole this gate was widened to close. The
 #    e2e suite going green says nothing about whether the extension
 #    it drives ever built — and a /release-<repo> command can merge
 #    a branch before its own CI has started, because no branch here
@@ -172,12 +213,12 @@ report "red submodule: CI failed on a pin that is not the suite's" \
   1 "$rc" "$out" "mboss-vscode" "failure" \
   "https://github.com/ashtable/mboss-vscode/actions/runs/3"
 
-# 5. No matching run: CI has never run on this commit.
+# 6. No matching run: CI has never run on this commit.
 run_preflight "$(case_dir green mboss-e2e-tests=none)"
 report "no matching CI run: nothing covers the e2e HEAD" \
   1 "$rc" "$out" "no CI run covers" "$(git -C "$e2e" rev-parse HEAD)"
 
-# 6. Still running: a run in flight has a null conclusion, which is
+# 7. Still running: a run in flight has a null conclusion, which is
 #    both a release to refuse and the one shape that can silently
 #    shift a field out of the parsed run list.
 run_preflight "$(case_dir green mboss-e2e-tests=running)"
@@ -185,12 +226,46 @@ report "unfinished CI run: the run covering the e2e HEAD is in flight" \
   1 "$rc" "$out" "in_progress" \
   "https://github.com/ashtable/mboss-e2e-tests/actions/runs/5"
 
-# 7. Unknown commit: the only run names a SHA this clone has never
+# 8. Unknown commit: the only run names a SHA this clone has never
 #    fetched, which is a different refusal from "no runs at all" —
 #    the fix is to fetch, not to push and wait.
 run_preflight "$(case_dir green mboss-e2e-tests=unknown)"
 report "unknown commit: the only run names a SHA this clone lacks" \
   1 "$rc" "$out" "never fetched" "fetch --all"
+
+# 9. A run behind the release: the only success ran two commits
+#    back. An ancestor is not evidence for what came after it — a
+#    run that covers a whole branch's worth of later commits covers
+#    none of them.
+run_preflight "$(case_dir green mboss-e2e-tests=stale)"
+report "stale run: the only success is behind the commit released" \
+  1 "$rc" "$out" "no CI run covers" "$(git -C "$e2e" rev-parse HEAD)"
+
+# 10. The one commit an earlier run does cover, and the reason the
+#     refusal above cannot simply demand equality: CI runs on pull
+#     requests, so a merge commit's evidence is the run on the head
+#     it merged.
+merged_repo=""
+for path in $covered_paths; do
+  case $(git -C "$root/$path" rev-list --parents -n1 HEAD) in
+  *' '*' '*)
+    merged_repo=$path
+    break
+    ;;
+  esac
+done
+
+merged_case="merge parent: the run on the head a merge commit merged"
+if [ -z "$merged_repo" ]; then
+  failures=$((failures + 1))
+  printf 'FAIL  %s\n        %s\n' "$merged_case" \
+    "no submodule is checked out at a merge commit, so the case
+        cannot be built"
+else
+  run_preflight "$(case_dir green "$merged_repo=merged")"
+  report "$merged_case" 0 "$rc" "$out" \
+    "https://github.com/ashtable/$merged_repo/actions/runs/8"
+fi
 
 # The mutation above is only safe if it is provably undone.
 status_after=$(git -C "$root" status --porcelain)
