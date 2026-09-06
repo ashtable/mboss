@@ -110,7 +110,7 @@ Launch a new `sonnet-engineer` subagent to:
 
 ### (Step 4) — Design the delta
 
-Launch a new `fable-engineer` subagent to:
+Launch a new `opus-engineer` subagent to:
 
 - Read `./design-docs/current-design.md` (Step 2) and `./scratch/step3-request-research.md`
   (Step 3).
@@ -120,7 +120,7 @@ Launch a new `fable-engineer` subagent to:
 
 ### (Step 5) — Review the delta
 
-Launch a new `fable-engineer` subagent to:
+Launch a new `opus-engineer` subagent to:
 
 - Read `./design-docs/current-design.md`, `./scratch/step3-request-research.md`, and
   `./design-docs/design-delta.md`.
@@ -156,7 +156,7 @@ Then branch:
 
 ### (Step 9) — Implement revisions to the delta
 
-Launch a new `fable-engineer` subagent to:
+Launch a new `opus-engineer` subagent to:
 
 - Read `./design-docs/design-delta.md` (Step 4) and `./scratch/step8-revisions-to-implement.md`
   (Step 8).
@@ -166,7 +166,7 @@ Launch a new `fable-engineer` subagent to:
 
 ### (Step 10) — Create the implementation plan
 
-Launch a new `fable-engineer` subagent to:
+Launch a new `opus-engineer` subagent to:
 
 - Read `./design-docs/current-design.md` and `./design-docs/design-delta.md`.
 - Design a cross-project implementation plan with an ordered, numbered table of tasks covering
