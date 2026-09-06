@@ -48,14 +48,14 @@ Launch a new sonnet-engineer subagent to:
 
 
 #### (Step 4) - Design the Delta
-Launch a new fable-engineer subagent to:
+Launch a new opus-engineer subagent to:
 - Review the output of the (Step 2) and (Step 3) subagents
 - Assemble a design for the changes that need to be implemented to the current system (as per current-design.md) such that it would implement the user's requested feature(s). 
 - Document this design in the ./design-docs/design-delta.md for a subsequent subagent (delete this file with permission if it exists).
 
 
 #### (Step 5) - Review the Delta
-Launch a new fable-engineer subagent to:
+Launch a new opus-engineer subagent to:
 - Review the output of the (Step 2), (Step 3) and (Step 4) subagents.
 - Assemble a list of recommended revisions to the ./design-docs/design-delta.md within the ./scratch/ directory for a subsequent subagent.
 
@@ -81,7 +81,7 @@ Launch a new sonnet-engineer subagent to:
 
 
 #### (Step 9) - Implement Revisions to Delta 
-Launch a new fable-engineer subagent to:
+Launch a new opus-engineer subagent to:
 - Review the output of the (Step 4) and (Step 7) subagents.
 - Implement the recommended revisions to the ./design-docs/design-delta.md that were deemed to be both valid and necessary in (Step 7).
 
@@ -90,7 +90,7 @@ Launch a new fable-engineer subagent to:
 
 
 #### (Step 10) - Create the implementation plan
-Launch a new fable-engineer subagent to:
+Launch a new opus-engineer subagent to:
 - Review the ./design-docs/current-design.md and ./design-docs/design-delta.md
 - Design a cross-project implementation plan with an ordered, numbered table of tasks that touches all of the impacted Git repos within the root project necessary to implement the design in ./design-docs/design-delta.md 
 - Document the cross-project implementation plan within ./design-docs/plan.md 

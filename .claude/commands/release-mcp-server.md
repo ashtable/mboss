@@ -54,7 +54,24 @@ Requested next version (may be empty): `$1`
    is the safety net rather than the mechanism. Then push:
    `git -C mboss-mcp-server push -u origin mcp-server-v<next>`
 
-8. **Bump the superproject.** In `/Users/ash/code/mboss`:
+8. **Open the next branch's PR, so its tip has CI.**
+   `gh pr create --repo ashtable/mboss-mcp-server --base main --head mcp-server-v<next>`,
+   describing it as the version stamp the branch was cut with.
+
+   This is the only release command that needs this, and the reason is step 7. Every
+   other repository's new branch tip is the merge commit it was cut at, which
+   `scripts/release-preflight.sh`'s fourth check covers by way of the run on the head
+   that merge merged. The `.version` stamp makes this tip a plain commit made *after*
+   that merge, and the check deliberately accepts nothing further back — one green run
+   must not vouch for every commit pushed since. So nothing has built these bytes, and
+   `/release-root` refuses to pin them.
+
+   CI here is `on: [pull_request]`, so opening the PR is what asks for a run at all, and
+   a run's `headSha` is the branch tip rather than a merge preview — which is what makes
+   this cover the right commit. Let it finish before running pre-flight. Step 4 reuses an
+   existing PR, so this is the next release's PR opened early rather than a spare one.
+
+9. **Bump the superproject.** In `/Users/ash/code/mboss`:
    - `git config -f .gitmodules submodule.mboss-mcp-server.branch mcp-server-v<next>`
    - `git submodule sync --quiet mboss-mcp-server`
    - `git add .gitmodules mboss-mcp-server`
@@ -65,5 +82,5 @@ Requested next version (may be empty): `$1`
 
 ## Report
 
-Summarize: the released branch, the PR URL and its merge state, the new branch, and the
-superproject commit plus the gitlink SHA it now records. Call out anything skipped.
+Summarize: the released branch, the PR URL and its merge state, the new branch and the
+PR opened against it, and the superproject commit plus the gitlink SHA it now records. Call out anything skipped.
