@@ -21,23 +21,23 @@
 [submodule "mboss-vscode"]
 	path = mboss-vscode
 	url = https://github.com/ashtable/mboss-vscode
-	branch = vscode-v0.0.4
+	branch = vscode-v0.0.5
 [submodule "mboss-core"]
 	path = mboss-core
 	url = https://github.com/ashtable/mboss-core
-	branch = core-v0.0.9
+	branch = core-v0.0.10
 [submodule "mboss-mcp-server"]
 	path = mboss-mcp-server
 	url = https://github.com/ashtable/mboss-mcp-server
-	branch = mcp-server-v0.0.4
+	branch = mcp-server-v0.0.5
 [submodule "mboss-skills"]
 	path = mboss-skills
 	url = https://github.com/ashtable/mboss-skills
-	branch = skills-v0.0.3
+	branch = skills-v0.0.4
 [submodule "mboss-e2e-tests"]
 	path = mboss-e2e-tests
 	url = https://github.com/ashtable/mboss-e2e-tests
-	branch = e2e-tests-v0.0.10
+	branch = e2e-tests-v0.0.11
 [submodule "mboss-docs"]
 	path = mboss-docs
 	url = https://github.com/ashtable/mboss-docs
