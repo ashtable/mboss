@@ -25,11 +25,11 @@
 [submodule "mboss-core"]
 	path = mboss-core
 	url = https://github.com/ashtable/mboss-core
-	branch = core-v0.0.11
+	branch = core-v0.0.12
 [submodule "mboss-mcp-server"]
 	path = mboss-mcp-server
 	url = https://github.com/ashtable/mboss-mcp-server
-	branch = mcp-server-v0.0.6
+	branch = mcp-server-v0.0.7
 [submodule "mboss-skills"]
 	path = mboss-skills
 	url = https://github.com/ashtable/mboss-skills
